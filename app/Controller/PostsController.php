@@ -11,12 +11,36 @@ class PostsController extends AppController {
 		print_r($routes);
 		echo('</pre>');
     }
+    //now overriding the AppController’s isAuthorized() call and internally checking if the parent class is already authorizing the user
+    public function isAuthorized($user) {
+        // All registered users can add posts
+        if ($this->action === 'add') {
+            return true;
+        }
+
+        // The owner of a post can edit and delete it
+        if (in_array($this->action, array('edit', 'delete'))) {
+            $postId = (int) $this->request->params['pass'][0];
+            if ($this->Post->isOwnedBy($postId, $user['id'])) {
+                return true;
+            }
+        }
+
+        return parent::isAuthorized($user);
+    }
+
 
     public function index(){
-    	//grab all posts and pass it to the view, in a variable posts:
-    	$this->set('posts',$this->Post->find('all'));
-    	// print_r($this->Post->find('all'));
-    	// die;
+        // can change different Layouts in different functions
+        $this->layout = 'default';
+
+        $posts = $this->paginate();
+        if ($this->request->is('requested')) {
+            return $posts;
+        }
+        $this->set('posts', $posts);
+    	
+    	// $this->set('posts',$this->Post->find('all'));
     }
 
     public function view($id = null) {
@@ -34,6 +58,9 @@ class PostsController extends AppController {
     //STORE POST
      public function add() {
         if ($this->request->is('post')) {
+            //to store the currently logged in user as a reference for the created post:
+            $this->request->data['Post']['user_id'] = $this->Auth->user('id');
+
             $this->Post->create();
             if ($this->Post->save($this->request->data)) {
                 $this->Flash->success(__('Your post has been saved.'));
